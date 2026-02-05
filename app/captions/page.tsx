@@ -5,7 +5,7 @@ export default function CaptionsPage() {
         CAPTIONS LIST
       </h1>
       <p className="mt-6 text-sm text-cyan-200/70">
-        Placeholder page — we can build the list UI next.
+        Placeholder page - caption list coming soon!.
       </p>
     </div>
   );
