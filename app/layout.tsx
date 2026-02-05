@@ -12,10 +12,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen text-white antialiased bg-black bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.06),rgba(0,0,0,0)_55%),radial-gradient(circle_at_50%_50%,rgba(0,0,0,0)_35%,rgba(0,0,0,1)_100%)]">
+      <body className="min-h-screen text-cyan-100 antialiased bg-zinc-950 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.06),rgba(0,0,0,0)_55%),radial-gradient(circle_at_50%_50%,rgba(0,0,0,0)_35%,rgba(24,24,27,1)_100%)]">
         <div className="min-h-screen w-full p-6">
           <div className="flex min-h-[calc(100vh-3rem)] gap-6">
-            <aside className="w-72 shrink-0">
+            <aside className="shrink-0">
               <Sidebar />
             </aside>
 
