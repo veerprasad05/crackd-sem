@@ -25,7 +25,7 @@ function inferType(value: unknown) {
 }
 
 type PageProps = {
-  searchParams?: { page?: string };
+  searchParams?: Promise<{ page?: string }>;
 };
 
 function clampPage(value: string | undefined, totalPages: number) {
@@ -51,6 +51,7 @@ function buildPageItems(current: number, total: number) {
 }
 
 export default async function CaptionsPage({ searchParams }: PageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const results = await Promise.all(
     TABLES.map(async (table): Promise<TableResult> => {
       const { data, error } = await supabase.from(table).select("*").limit(1);
@@ -62,105 +63,93 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
       return { table, columns, row };
     })
   );
-
   const perPage = 50;
-  const { data: allCaptions, error: captionsError } = await supabase
-    .from("captions")
-    .select("id, image_id, content, like_count");
+  const { count: totalImageCount, error: imagesCountError } = await supabase
+    .from("images")
+    .select("id", { count: "exact", head: true });
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil((totalImageCount ?? 0) / perPage)
+  );
+  const currentPage = clampPage(resolvedSearchParams?.page, totalPages);
+  const rangeStart = (currentPage - 1) * perPage;
+  const rangeEnd = rangeStart + perPage - 1;
+
+  const { data: imagesData, error: imagesError } = await supabase
+    .from("images")
+    .select("*, captions(count)")
+    .order("count", {
+      foreignTable: "captions",
+      ascending: false,
+      nullsFirst: false,
+    })
+    .order("id", { ascending: true })
+    .range(rangeStart, rangeEnd);
+
+  const imageRows = Array.isArray(imagesData) ? imagesData : [];
+  const imageIds = imageRows
+    .map((image) => (image as Record<string, unknown>).id)
+    .filter(
+      (id): id is string | number =>
+        typeof id === "string" || typeof id === "number"
+    );
+
+  const { data: captionsForImages, error: captionsError } = imageIds.length
+    ? await supabase
+        .from("captions")
+        .select("id, image_id, content")
+        .in("image_id", imageIds)
+    : { data: null, error: null };
 
   const captionsByImageId = new Map<string | number, CaptionEntry[]>();
-  const totalLikesByImageId = new Map<string | number, number>();
-
-  if (Array.isArray(allCaptions)) {
-    allCaptions.forEach((caption) => {
+  if (Array.isArray(captionsForImages)) {
+    captionsForImages.forEach((caption) => {
       const row = caption as Record<string, unknown>;
       const imageId = row.image_id;
       if (typeof imageId !== "string" && typeof imageId !== "number") return;
-      const rawLikeCount =
-        typeof row.like_count === "number"
-          ? row.like_count
-          : Number.isFinite(Number(row.like_count))
-            ? Number(row.like_count)
-            : 0;
-      const likeCount = Math.max(0, rawLikeCount);
       const entry: CaptionEntry = {
         id: row.id as string | number | undefined,
         content: row.content as string | null | undefined,
-        like_count: likeCount,
       };
       const bucket = captionsByImageId.get(imageId) ?? [];
       bucket.push(entry);
       captionsByImageId.set(imageId, bucket);
-
-      const currentTotal = totalLikesByImageId.get(imageId) ?? 0;
-      totalLikesByImageId.set(imageId, currentTotal + likeCount);
-    });
-  }
-  captionsByImageId.forEach((bucket, imageId) => {
-    const sorted = [...bucket].sort(
-      (a, b) => (b.like_count ?? 0) - (a.like_count ?? 0)
-    );
-    captionsByImageId.set(imageId, sorted);
-  });
-
-  const sortedImageIds = Array.from(totalLikesByImageId.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([imageId]) => imageId);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(sortedImageIds.length / perPage)
-  );
-  const currentPage = clampPage(searchParams?.page, totalPages);
-  const rangeStart = (currentPage - 1) * perPage;
-  const rangeEnd = rangeStart + perPage;
-  const pageImageIds = sortedImageIds.slice(rangeStart, rangeEnd);
-
-  const { data: imagesData, error: imagesError } = pageImageIds.length
-    ? await supabase.from("images").select("*").in("id", pageImageIds)
-    : { data: null, error: null };
-
-  const imageById = new Map<string | number, Record<string, unknown>>();
-  if (Array.isArray(imagesData)) {
-    imagesData.forEach((image) => {
-      const row = image as Record<string, unknown>;
-      const imageId = row.id;
-      if (typeof imageId !== "string" && typeof imageId !== "number") return;
-      imageById.set(imageId, row);
     });
   }
 
-  const sortedImageRows = pageImageIds
-    .map((imageId) => imageById.get(imageId))
-    .filter((row): row is Record<string, unknown> => Boolean(row));
-
-  const dataErrorMessage = captionsError?.message ?? imagesError?.message;
+  const dataErrorMessage =
+    imagesCountError?.message ?? imagesError?.message ?? captionsError?.message;
 
   return (
-    <div className="text-center">
-      <h1 className="font-mono text-[3.5rem] sm:text-[4rem] lg:text-[4.75rem] leading-none tracking-[0.2em] font-semibold text-cyan-100 drop-shadow-[0_0_2px_rgba(34,211,238,0.7)] [text-shadow:0_0_2px_rgba(34,211,238,0.7),0_0_22px_rgba(34,211,238,0.35)]">
-        TABLE COLUMNS
-      </h1>
+    <div className="w-full max-w-[1400px] mx-auto">
+      <header className="flex flex-wrap items-start justify-between gap-6">
+        <div>
+          <p className="text-[0.7rem] uppercase tracking-[0.5em] text-orange-300/80 [font-family:var(--font-heading)]">
+            Grid View
+          </p>
+          <h1 className="mt-3 text-[2.75rem] sm:text-[3.25rem] lg:text-[3.75rem] leading-none uppercase tracking-[0.18em] text-zinc-100 [font-family:var(--font-heading)]">
+            Captions Library
+          </h1>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4 text-xs uppercase tracking-[0.32em] text-zinc-300/70 shadow-[0_12px_28px_rgba(0,0,0,0.45)]">
+          Showing all images
+        </div>
+      </header>
 
       <div className="mt-10">
-        <h2 className="text-lg font-semibold text-cyan-100">
-          Images
-        </h2>
-        <h3 className="text-sm text-cyan-200/70">
-          Sorted By Likes
-        </h3>
         {dataErrorMessage ? (
-          <p className="mt-3 text-sm text-red-200/90">
+          <p className="mt-3 text-sm text-rose-200/90">
             Failed to load images: {dataErrorMessage}
           </p>
-        ) : sortedImageRows.length === 0 ? (
-          <p className="mt-3 text-sm text-cyan-200/70">
+        ) : imageRows.length === 0 ? (
+          <p className="mt-3 text-sm text-zinc-400/80">
             No images found to display.
           </p>
         ) : (
           <>
             <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {sortedImageRows.map((image) => {
+              {imageRows.map((image) => {
                 const row = image as Record<string, unknown>;
                 const imageId = row.id;
                 const imageUrl = row.url as string | undefined;
@@ -180,7 +169,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
 
             {totalPages > 1 ? (
               <nav
-                className="mt-10 flex flex-wrap items-center justify-center gap-2 text-xs uppercase tracking-[0.22em] text-cyan-200/70"
+                className="mt-12 flex flex-wrap items-center justify-center gap-2 text-[0.65rem] uppercase tracking-[0.4em] text-zinc-400/80"
                 aria-label="Pagination"
               >
                 <a
@@ -190,7 +179,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                     "rounded-full px-3 py-2 ring-1 ring-white/10 transition",
                     currentPage === 1
                       ? "cursor-not-allowed opacity-40"
-                      : "hover:text-cyan-100 hover:ring-cyan-200/70",
+                      : "hover:text-orange-200 hover:ring-orange-400/60",
                   ].join(" ")}
                 >
                   Prev
@@ -213,8 +202,8 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                       className={[
                         "min-w-[2.5rem] rounded-full px-3 py-2 text-center ring-1 ring-white/10 transition",
                         isActive
-                          ? "text-cyan-100 ring-2 ring-cyan-200/70 shadow-[0_0_16px_rgba(34,211,238,0.35)]"
-                          : "hover:text-cyan-100 hover:ring-cyan-200/70",
+                          ? "text-orange-200 ring-2 ring-orange-400/70 shadow-[0_0_16px_rgba(255,120,0,0.35)]"
+                          : "hover:text-orange-200 hover:ring-orange-400/60",
                       ].join(" ")}
                     >
                       {item}
@@ -229,7 +218,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                     "rounded-full px-3 py-2 ring-1 ring-white/10 transition",
                     currentPage === totalPages
                       ? "cursor-not-allowed opacity-40"
-                      : "hover:text-cyan-100 hover:ring-cyan-200/70",
+                      : "hover:text-orange-200 hover:ring-orange-400/60",
                   ].join(" ")}
                 >
                   Next

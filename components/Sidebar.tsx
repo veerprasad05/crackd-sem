@@ -13,8 +13,8 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="h-full rounded-2xl bg-gradient-to-b from-white/[0.04] to-white/[0.02] ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),_0_18px_50px_rgba(0,0,0,0.7)] p-4">
-      <div className="text-center mb-4 text-xs tracking-[0.22em] uppercase text-cyan-200/70">
+    <div className="h-full rounded-2xl bg-[#15151b]/90 ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),_0_18px_50px_rgba(0,0,0,0.7)] p-4 backdrop-blur">
+      <div className="text-center mb-5 text-[0.7rem] tracking-[0.4em] uppercase text-orange-300/80 [font-family:var(--font-heading)]">
         Veer's Humor Project
       </div>
 
@@ -27,11 +27,12 @@ export default function Sidebar() {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={[
-                "text-center rounded-xl uppercase px-4 py-3 text-xs tracking-[0.22em] ring-1 ring-white/10 bg-white/[0.03] text-cyan-100/80 transition-colors",
-                "hover:bg-white/[0.05] hover:text-cyan-100",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/40",
+                "text-center rounded-xl uppercase px-4 py-3 text-[0.7rem] tracking-[0.32em]",
+                "bg-black/40 ring-1 ring-white/10 text-zinc-300/80",
+                "transition-colors hover:bg-black/60 hover:text-zinc-100",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50",
                 active
-                  ? "bg-white/[0.06] text-cyan-100 ring-2 ring-cyan-200/70 shadow-[0_0_24px_rgba(34,211,238,0.2)]"
+                  ? "bg-orange-500/15 text-orange-200 ring-2 ring-orange-400/50 shadow-[0_0_24px_rgba(255,120,0,0.25)]"
                   : "",
               ].join(" ")}
             >

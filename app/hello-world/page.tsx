@@ -2,7 +2,7 @@
 import TextType from "@/ui/TextType";
 export default function HelloWorldPage() {
   return (
-    <h1 className="font-mono text-[3.5rem] sm:text-[4rem] lg:text-[4.75rem] leading-none tracking-[0.2em] font-semibold text-cyan-100 drop-shadow-[0_0_2px_rgba(34,211,238,0.7)] [text-shadow:0_0_2px_rgba(34,211,238,0.7),0_0_22px_rgba(34,211,238,0.35)]">
+    <h1 className="text-[2.75rem] sm:text-[3.25rem] lg:text-[3.75rem] leading-none uppercase tracking-[0.18em] text-zinc-100 [font-family:var(--font-heading)]">
       <TextType 
         text={["Hello World!", "Veer's Crack'd Project"]}
         typingSpeed={75}

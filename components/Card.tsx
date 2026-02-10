@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Heart } from "lucide-react";
 
 type CardProps = React.HTMLAttributes<HTMLDivElement>;
 
@@ -9,13 +8,11 @@ type CardImageProps = {
   src: string;
   alt?: string;
   className?: string;
-  likes?: number | null;
 };
 
 type CaptionEntry = {
   id?: string | number;
   content?: string | null;
-  like_count?: number | null;
 };
 
 type CardCaptionProps = {
@@ -33,15 +30,19 @@ type CardContextValue = {
 const CardContext = React.createContext<CardContextValue | null>(null);
 
 const baseCardClasses = [
-  "relative overflow-hidden rounded-2xl",
-  "bg-zinc-950/80",
+  "group relative overflow-hidden rounded-2xl",
+  "bg-[#15151b]",
   "ring-1 ring-white/10",
-  "shadow-[0_18px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.08)]",
+  "shadow-[0_24px_50px_rgba(0,0,0,0.65)]",
   "transition-transform duration-300 ease-out",
   "hover:-translate-y-1",
-  "before:pointer-events-none before:absolute before:inset-0",
-  "before:bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.14),transparent_55%)]",
-  "before:opacity-60 before:content-['']",
+  "focus-within:ring-2 focus-within:ring-orange-400/60",
+  "before:pointer-events-none before:absolute before:-inset-[1px] before:rounded-[1.1rem]",
+  "before:bg-[linear-gradient(140deg,rgba(255,255,255,0.18),rgba(255,255,255,0)_35%,rgba(255,110,0,0.3)_60%,rgba(255,255,255,0)_90%)]",
+  "before:opacity-70 before:content-['']",
+  "after:pointer-events-none after:absolute after:inset-0 after:rounded-2xl",
+  "after:bg-[radial-gradient(circle_at_20%_15%,rgba(255,255,255,0.08),transparent_55%)]",
+  "after:opacity-80 after:content-['']",
 ].join(" ");
 
 const CardRoot = React.forwardRef<HTMLDivElement, CardProps>(
@@ -69,23 +70,7 @@ function CardImage({
   src,
   alt = "Card image",
   className,
-  likes,
 }: CardImageProps) {
-  const context = React.useContext(CardContext);
-  const activeCaption =
-    context && context.captions.length > 0
-      ? context.captions[context.index]
-      : undefined;
-  const resolvedLikes =
-    typeof likes === "number"
-      ? likes
-      : typeof activeCaption?.like_count === "number"
-        ? activeCaption.like_count
-        : 0;
-  const hasLikesOverride = typeof likes === "number" && Number.isFinite(likes);
-  const hasCaptions = (context?.captions.length ?? 0) > 0;
-  const showLikes = (hasLikesOverride || hasCaptions) && Number.isFinite(resolvedLikes);
-
   return (
     <div
       className={[
@@ -101,14 +86,8 @@ function CardImage({
         alt={alt}
         className="h-full w-full object-contain bg-black"
       />
-      {showLikes ? (
-        <div className="absolute right-3 top-3 z-20 flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-rose-400 ring-1 ring-rose-500/40 shadow-[0_0_14px_rgba(244,63,94,0.35)]">
-          <Heart className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-          <span>{resolvedLikes}</span>
-        </div>
-      ) : null}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-black/0 to-black/60" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-black/0 to-black/70" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/55 to-transparent" />
     </div>
   );
 }
@@ -152,20 +131,21 @@ function CardCaption({ captions, className }: CardCaptionProps) {
   const captionText = activeCaption?.content ? String(activeCaption.content) : "";
   const disableNav = count <= 1;
   const hasCaptions = count > 0;
-  const displayText = hasCaptions ? captionText : "No captions for Image";
+  const displayText = hasCaptions ? captionText : "No captions for this image.";
 
   return (
     <div
       className={[
         "relative z-10 w-full",
-        "bg-black/70",
+        "bg-[#0f0f14]/85",
         "px-12 sm:px-14",
         "py-3 sm:py-3.5",
         "text-center",
-        "text-xs sm:text-sm",
-        "tracking-[0.08em]",
+        "text-[0.7rem] sm:text-xs",
+        "tracking-[0.14em]",
         "text-zinc-100",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+        "[font-family:var(--font-body)]",
+        "shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
         "border-t border-white/10",
         className,
       ]
@@ -182,10 +162,10 @@ function CardCaption({ captions, className }: CardCaptionProps) {
           "flex items-center justify-center",
           "border-r border-white/10",
           "bg-gradient-to-b from-white/10 via-white/5 to-transparent",
-          "text-zinc-200/70 transition",
-          "hover:text-white",
+          "text-orange-200/70 transition",
+          "hover:text-orange-200",
           "disabled:cursor-not-allowed disabled:text-zinc-500/50",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60",
         ].join(" ")}
       >
         <svg
@@ -219,10 +199,10 @@ function CardCaption({ captions, className }: CardCaptionProps) {
           "flex items-center justify-center",
           "border-l border-white/10",
           "bg-gradient-to-b from-white/10 via-white/5 to-transparent",
-          "text-zinc-200/70 transition",
-          "hover:text-white",
+          "text-orange-200/70 transition",
+          "hover:text-orange-200",
           "disabled:cursor-not-allowed disabled:text-zinc-500/50",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60",
         ].join(" ")}
       >
         <svg
