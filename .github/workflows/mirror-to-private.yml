@@ -15,7 +15,7 @@ jobs:
 
       - name: Push to private repo (force)
         run: |
-          git remote add private https://x-access-token:${PRIVATE_REPO_PAT}@github.com/veerprasad05/veers-crackd-deployed.git
+          git remote add private https://x-access-token:${PRIVATE_REPO_PAT}@github.com/veerprasad05/veers-crackd-deployed
           git push private main:main --force
         env:
           PRIVATE_REPO_PAT: ${{ secrets.PRIVATE_REPO_PAT }}
