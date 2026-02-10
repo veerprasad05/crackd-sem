@@ -63,46 +63,16 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
     })
   );
 
-  const imagesResult = results.find((r) => r.table === "images");
-  const firstImageId = imagesResult?.row
-    ? (imagesResult.row["id"] as string | number | undefined)
-    : undefined;
-
   const perPage = 50;
-  const { count: totalImageCount, error: imagesCountError } = await supabase
-    .from("images")
-    .select("id", { count: "exact", head: true });
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil((totalImageCount ?? 0) / perPage)
-  );
-  const currentPage = clampPage(searchParams?.page, totalPages);
-  const rangeStart = (currentPage - 1) * perPage;
-  const rangeEnd = rangeStart + perPage - 1;
-
-  const { data: imagesData, error: imagesError } = await supabase
-    .from("images")
-    .select("*")
-    .range(rangeStart, rangeEnd);
-
-  const imageRows = Array.isArray(imagesData) ? imagesData : [];
-  const countErrorMessage = imagesCountError?.message;
-  const imageIds = imageRows
-    .map((image) => (image as Record<string, unknown>).id)
-    .filter(
-      (id): id is string | number =>
-        typeof id === "string" || typeof id === "number"
-    );
-
-  const { data: captionsForImages, error: captionsError } = imageIds.length
-    ? await supabase.from("captions").select("*").in("image_id", imageIds)
-    : { data: null, error: null };
+  const { data: allCaptions, error: captionsError } = await supabase
+    .from("captions")
+    .select("id, image_id, content, like_count");
 
   const captionsByImageId = new Map<string | number, CaptionEntry[]>();
-  const topLikesByImageId = new Map<string | number, number>();
-  if (Array.isArray(captionsForImages)) {
-    captionsForImages.forEach((caption) => {
+  const totalLikesByImageId = new Map<string | number, number>();
+
+  if (Array.isArray(allCaptions)) {
+    allCaptions.forEach((caption) => {
       const row = caption as Record<string, unknown>;
       const imageId = row.image_id;
       if (typeof imageId !== "string" && typeof imageId !== "number") return;
@@ -122,32 +92,49 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
       bucket.push(entry);
       captionsByImageId.set(imageId, bucket);
 
-      const currentTop = topLikesByImageId.get(imageId) ?? 0;
-      if (likeCount > currentTop) {
-        topLikesByImageId.set(imageId, likeCount);
-      }
+      const currentTotal = totalLikesByImageId.get(imageId) ?? 0;
+      totalLikesByImageId.set(imageId, currentTotal + likeCount);
+    });
+  }
+  captionsByImageId.forEach((bucket, imageId) => {
+    const sorted = [...bucket].sort(
+      (a, b) => (b.like_count ?? 0) - (a.like_count ?? 0)
+    );
+    captionsByImageId.set(imageId, sorted);
+  });
+
+  const sortedImageIds = Array.from(totalLikesByImageId.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([imageId]) => imageId);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(sortedImageIds.length / perPage)
+  );
+  const currentPage = clampPage(searchParams?.page, totalPages);
+  const rangeStart = (currentPage - 1) * perPage;
+  const rangeEnd = rangeStart + perPage;
+  const pageImageIds = sortedImageIds.slice(rangeStart, rangeEnd);
+
+  const { data: imagesData, error: imagesError } = pageImageIds.length
+    ? await supabase.from("images").select("*").in("id", pageImageIds)
+    : { data: null, error: null };
+
+  const imageById = new Map<string | number, Record<string, unknown>>();
+  if (Array.isArray(imagesData)) {
+    imagesData.forEach((image) => {
+      const row = image as Record<string, unknown>;
+      const imageId = row.id;
+      if (typeof imageId !== "string" && typeof imageId !== "number") return;
+      imageById.set(imageId, row);
     });
   }
 
-  const captionsData = firstImageId
-    ? captionsByImageId.get(firstImageId) ?? []
-    : null;
+  const sortedImageRows = pageImageIds
+    .map((imageId) => imageById.get(imageId))
+    .filter((row): row is Record<string, unknown> => Boolean(row));
 
-  const sortedImageRows = [...imageRows].sort((a, b) => {
-    const aRow = a as Record<string, unknown>;
-    const bRow = b as Record<string, unknown>;
-    const aId = aRow.id;
-    const bId = bRow.id;
-    const aLikes =
-      typeof aId === "string" || typeof aId === "number"
-        ? topLikesByImageId.get(aId) ?? 0
-        : 0;
-    const bLikes =
-      typeof bId === "string" || typeof bId === "number"
-        ? topLikesByImageId.get(bId) ?? 0
-        : 0;
-    return bLikes - aLikes;
-  });
+  const dataErrorMessage = captionsError?.message ?? imagesError?.message;
 
   return (
     <div className="text-center">
@@ -155,67 +142,18 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
         TABLE COLUMNS
       </h1>
 
-      <div className="mt-8 space-y-4 text-left inline-block">
-        {results.map((result) => (
-          <div
-            key={result.table}
-            className="rounded-md border border-cyan-400/30 p-4"
-          >
-            <h2 className="text-lg font-semibold text-cyan-100">
-              {result.table} columns
-            </h2>
-            {result.error ? (
-              <p className="mt-2 text-sm text-red-200/90">
-                Failed to load columns: {result.error}
-              </p>
-            ) : !result.row || result.columns.length === 0 ? (
-              <p className="mt-2 text-sm text-cyan-200/70">
-                No rows found, so columns could not be inferred.
-              </p>
-            ) : (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {result.columns
-                  .filter(
-                    (column) =>
-                      !(result.table === "images" && column === "embedding")
-                  )
-                  .map((column) => {
-                  const value = result.row?.[column];
-                  return (
-                    <div
-                      key={`${result.table}-${column}`}
-                      className="rounded border border-cyan-400/20 p-3"
-                    >
-                      <div className="text-xs tracking-wide text-cyan-200/70">
-                        {column}
-                      </div>
-                      <div className="mt-1 text-[11px] text-cyan-300/70">
-                        type: {inferType(value)}
-                      </div>
-                      <div className="mt-2 text-sm text-cyan-100/90 break-words">
-                        {typeof value === "string"
-                          ? value
-                          : JSON.stringify(value)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
       <div className="mt-10">
         <h2 className="text-lg font-semibold text-cyan-100">
           Images
         </h2>
-        {imagesError || countErrorMessage ? (
+        <h3 className="text-sm text-cyan-200/70">
+          Sorted By Likes
+        </h3>
+        {dataErrorMessage ? (
           <p className="mt-3 text-sm text-red-200/90">
-            Failed to load images:{" "}
-            {imagesError?.message ?? countErrorMessage}
+            Failed to load images: {dataErrorMessage}
           </p>
-        ) : imageRows.length === 0 ? (
+        ) : sortedImageRows.length === 0 ? (
           <p className="mt-3 text-sm text-cyan-200/70">
             No images found to display.
           </p>
