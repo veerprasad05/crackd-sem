@@ -13,14 +13,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Preflight auth to private repo
-        run: git ls-remote https://x-access-token:${PRIVATE_REPO_PAT}@github.com/veerprasad05/veers-crackd-deployed.git
-        env:
-          PRIVATE_REPO_PAT: ${{ secrets.PRIVATE_REPO_PAT }}
-
       - name: Push to private repo (force)
+        shell: bash
         run: |
-          git remote add private https://x-access-token:${PRIVATE_REPO_PAT}@github.com/veerprasad05/veers-crackd-deployed.git
+          set -euo pipefail
+          if [ -z "${PRIVATE_REPO_PAT:-}" ]; then
+            echo "PRIVATE_REPO_PAT is missing or empty. Check repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          git remote remove private 2>/dev/null || true
+          git remote add private "https://x-access-token:${PRIVATE_REPO_PAT}@github.com/veerprasad05/veers-crackd-deployed.git"
           git push private main:main --force
         env:
           PRIVATE_REPO_PAT: ${{ secrets.PRIVATE_REPO_PAT }}
