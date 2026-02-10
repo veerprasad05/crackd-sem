@@ -13,6 +13,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Preflight auth to private repo
+        run: git ls-remote https://x-access-token:${PRIVATE_REPO_PAT}@github.com/veerprasad05/veers-crackd-deployed.git
+        env:
+          PRIVATE_REPO_PAT: ${{ secrets.PRIVATE_REPO_PAT }}
+
       - name: Push to private repo (force)
         run: |
           git remote add private https://x-access-token:${PRIVATE_REPO_PAT}@github.com/veerprasad05/veers-crackd-deployed.git
