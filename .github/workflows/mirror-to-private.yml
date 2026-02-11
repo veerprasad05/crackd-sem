@@ -13,13 +13,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configure git credentials
-        run: |
-          git config --global credential.helper store
-          echo "https://${{ secrets.PRIVATE_REPO_PAT }}@github.com" > ~/.git-credentials
-          git config --global user.email "action@github.com"
-          git config --global user.name "GitHub Action"
-
       - name: Push to private repo (force)
         run: |
-          git push --force https://github.com/veerprasad05/veers-crackd-deployed.git HEAD:refs/heads/main
+          git push --force https://${{ secrets.PRIVATE_REPO_PAT }}@github.com/veerprasad05/veers-crackd-deployed.git HEAD:refs/heads/main
