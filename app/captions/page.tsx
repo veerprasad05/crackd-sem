@@ -5,6 +5,8 @@ import {
   type CaptionEntry,
 } from "@/components/Card";
 import { supabase } from "@/lib/supabaseClient";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 const TABLES = ["images", "caption_likes", "caption_saved", "shares", "captions"];
 
@@ -51,6 +53,13 @@ function buildPageItems(current: number, total: number) {
 }
 
 export default async function CaptionsPage({ searchParams }: PageProps) {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getUser();
+
+  if (!data.user) {
+    redirect("/");
+  }
+  
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const results = await Promise.all(
     TABLES.map(async (table): Promise<TableResult> => {

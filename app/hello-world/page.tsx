@@ -1,6 +1,15 @@
-// app/hello-world/page.tsx
 import TextType from "@/ui/TextType";
-export default function HelloWorldPage() {
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+
+export default async function HelloWorldPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getUser();
+
+  if (!data.user) {
+    redirect("/");
+  }
+
   return (
     <h1 className="text-[2.75rem] sm:text-[3.25rem] lg:text-[3.75rem] leading-none uppercase tracking-[0.18em] text-zinc-100 [font-family:var(--font-heading)]">
       <TextType 
