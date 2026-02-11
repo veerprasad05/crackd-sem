@@ -46,7 +46,7 @@ export default function AuthButtons({ mode = "full" }: AuthButtonsProps) {
     <div className="mt-6 flex flex-col items-center gap-3">
       <div className="flex gap-3">
         <button
-          className="rounded-md border border-cyan-200/40 px-4 py-2 text-sm text-cyan-100 hover:border-cyan-200/70 hover:text-white"
+          className="rounded-xl px-4 py-3 text-[0.7rem] uppercase tracking-[0.32em] bg-orange-500/15 text-orange-200 ring-2 ring-orange-400/50 shadow-[0_0_24px_rgba(255,120,0,0.25)] transition-colors hover:bg-orange-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60 disabled:cursor-not-allowed disabled:opacity-60"
           onClick={handleSignIn}
           disabled={loading}
         >
@@ -54,7 +54,7 @@ export default function AuthButtons({ mode = "full" }: AuthButtonsProps) {
         </button>
         {mode === "full" ? (
           <button
-            className="rounded-md border border-cyan-200/20 px-4 py-2 text-sm text-cyan-200/80 hover:border-cyan-200/50 hover:text-cyan-100"
+            className="rounded-xl px-4 py-3 text-[0.7rem] uppercase tracking-[0.32em] bg-black/40 ring-1 ring-white/10 text-zinc-300/80 transition-colors hover:bg-black/60 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={handleSignOut}
             disabled={loading}
           >

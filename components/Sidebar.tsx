@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import SidebarUserMenu from "@/components/SidebarUserMenu";
 
 const navItems = [
   { href: "/hello-world", label: "Hello World" },
@@ -13,7 +14,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="h-full rounded-2xl bg-[#15151b]/90 ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),_0_18px_50px_rgba(0,0,0,0.7)] p-4 backdrop-blur">
+    <div className="flex h-full flex-col rounded-2xl bg-[#15151b]/90 ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),_0_18px_50px_rgba(0,0,0,0.7)] p-4 backdrop-blur">
       <div className="text-center mb-5 text-[0.7rem] tracking-[0.4em] uppercase text-orange-300/80 [font-family:var(--font-heading)]">
         Veer's Humor Project
       </div>
@@ -41,6 +42,10 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="mt-auto pt-6">
+        <SidebarUserMenu />
+      </div>
     </div>
   );
 }
