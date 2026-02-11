@@ -13,15 +13,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify token can see private repo
-        shell: bash
-        run: |
-          set -euo pipefail
-          git ls-remote "https://x-access-token:${PRIVATE_REPO_PAT}@github.com/veerprasad05/veers-crackd-deployed.git" HEAD
-        env:
-          PRIVATE_REPO_PAT: ${{ secrets.PRIVATE_REPO_PAT }}
-
-
       - name: Push to private repo (force)
         shell: bash
         run: |
