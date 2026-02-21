@@ -4,8 +4,9 @@ import {
   CardImage,
   type CaptionEntry,
 } from "@/components/Card";
-import { supabase } from "@/lib/supabaseClient";
+import { VoteCount } from "@/components/VoteCount";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { FastForward, Rewind } from "lucide-react";
 import { redirect } from "next/navigation";
 
 const TABLES = ["images", "caption_likes", "caption_saved", "shares", "captions"];
@@ -59,6 +60,13 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
   if (!data.user) {
     redirect("/");
   }
+
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  const profileId = profileRow?.id ?? null;
   
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const results = await Promise.all(
@@ -73,62 +81,122 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
     })
   );
   const perPage = 50;
-  const { count: totalImageCount, error: imagesCountError } = await supabase
-    .from("images")
+  const { count: totalCaptionCount, error: captionsCountError } = await supabase
+    .from("captions")
     .select("id", { count: "exact", head: true });
 
   const totalPages = Math.max(
     1,
-    Math.ceil((totalImageCount ?? 0) / perPage)
+    Math.ceil((totalCaptionCount ?? 0) / perPage)
   );
   const currentPage = clampPage(resolvedSearchParams?.page, totalPages);
   const rangeStart = (currentPage - 1) * perPage;
   const rangeEnd = rangeStart + perPage - 1;
 
-  const { data: imagesData, error: imagesError } = await supabase
-    .from("images")
-    .select("*, captions(count)")
-    .order("count", {
-      foreignTable: "captions",
-      ascending: false,
-      nullsFirst: false,
-    })
+  const { data: captionsData, error: captionsError } = await supabase
+    .from("captions")
+    .select("id, image_id, content")
+    .not("content", "is", null)
+    .neq("content", "")
     .order("id", { ascending: true })
     .range(rangeStart, rangeEnd);
 
-  const imageRows = Array.isArray(imagesData) ? imagesData : [];
-  const imageIds = imageRows
-    .map((image) => (image as Record<string, unknown>).id)
-    .filter(
-      (id): id is string | number =>
-        typeof id === "string" || typeof id === "number"
-    );
+  const captionRows = Array.isArray(captionsData) ? captionsData : [];
+  const captionIds = Array.from(
+    new Set(
+      captionRows
+        .map((caption) => (caption as Record<string, unknown>).id)
+        .filter(
+          (id): id is string | number =>
+            typeof id === "string" || typeof id === "number"
+        )
+    )
+  );
+  const imageIds = Array.from(
+    new Set(
+      captionRows
+        .map((caption) => (caption as Record<string, unknown>).image_id)
+        .filter(
+          (id): id is string | number =>
+            typeof id === "string" || typeof id === "number"
+        )
+    )
+  );
 
-  const { data: captionsForImages, error: captionsError } = imageIds.length
-    ? await supabase
-        .from("captions")
-        .select("id, image_id, content")
-        .in("image_id", imageIds)
+  const { data: imagesForCaptions, error: imagesForCaptionsError } =
+    imageIds.length
+      ? await supabase.from("images").select("id, url").in("id", imageIds)
     : { data: null, error: null };
 
-  const captionsByImageId = new Map<string | number, CaptionEntry[]>();
-  if (Array.isArray(captionsForImages)) {
-    captionsForImages.forEach((caption) => {
-      const row = caption as Record<string, unknown>;
-      const imageId = row.image_id;
+  const imagesById = new Map<string | number, { id: string | number; url?: string }>();
+  if (Array.isArray(imagesForCaptions)) {
+    imagesForCaptions.forEach((image) => {
+      const row = image as Record<string, unknown>;
+      const imageId = row.id;
       if (typeof imageId !== "string" && typeof imageId !== "number") return;
-      const entry: CaptionEntry = {
-        id: row.id as string | number | undefined,
-        content: row.content as string | null | undefined,
-      };
-      const bucket = captionsByImageId.get(imageId) ?? [];
-      bucket.push(entry);
-      captionsByImageId.set(imageId, bucket);
+      imagesById.set(imageId, {
+        id: imageId,
+        url: row.url as string | undefined,
+      });
+    });
+  }
+
+  const { data: captionVotes, error: captionVotesError } = captionIds.length
+    ? await supabase
+        .from("caption_votes")
+        .select("caption_id, vote_value")
+        .in("caption_id", captionIds)
+    : { data: null, error: null };
+
+  const votesByCaptionId = new Map<string | number, number[]>();
+  if (Array.isArray(captionVotes)) {
+    captionVotes.forEach((vote) => {
+      const row = vote as Record<string, unknown>;
+      const captionId = row.caption_id;
+      const voteValue = row.vote_value;
+      if (
+        (typeof captionId !== "string" && typeof captionId !== "number") ||
+        typeof voteValue !== "number"
+      ) {
+        return;
+      }
+      const bucket = votesByCaptionId.get(captionId) ?? [];
+      bucket.push(voteValue);
+      votesByCaptionId.set(captionId, bucket);
+    });
+  }
+
+  const { data: userVotes, error: userVotesError } =
+    profileId && captionIds.length
+      ? await supabase
+          .from("caption_votes")
+          .select("caption_id, vote_value")
+          .eq("profile_id", profileId)
+          .in("caption_id", captionIds)
+      : { data: null, error: null };
+
+  const userVoteByCaptionId = new Map<string | number, number>();
+  if (Array.isArray(userVotes)) {
+    userVotes.forEach((vote) => {
+      const row = vote as Record<string, unknown>;
+      const captionId = row.caption_id;
+      const voteValue = row.vote_value;
+      if (
+        (typeof captionId !== "string" && typeof captionId !== "number") ||
+        typeof voteValue !== "number"
+      ) {
+        return;
+      }
+      userVoteByCaptionId.set(captionId, voteValue);
     });
   }
 
   const dataErrorMessage =
-    imagesCountError?.message ?? imagesError?.message ?? captionsError?.message;
+    captionsCountError?.message ??
+    captionsError?.message ??
+    imagesForCaptionsError?.message ??
+    captionVotesError?.message ??
+    userVotesError?.message;
 
   return (
     <div className="w-full max-w-[1400px] mx-auto">
@@ -142,35 +210,56 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
           </h1>
         </div>
         <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4 text-xs uppercase tracking-[0.32em] text-zinc-300/70 shadow-[0_12px_28px_rgba(0,0,0,0.45)]">
-          Showing all images
+          Showing all captions
         </div>
       </header>
 
       <div className="mt-10">
         {dataErrorMessage ? (
           <p className="mt-3 text-sm text-rose-200/90">
-            Failed to load images: {dataErrorMessage}
+            Failed to load captions: {dataErrorMessage}
           </p>
-        ) : imageRows.length === 0 ? (
+        ) : captionRows.length === 0 ? (
           <p className="mt-3 text-sm text-zinc-400/80">
-            No images found to display.
+            No captions found to display.
           </p>
         ) : (
           <>
             <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {imageRows.map((image) => {
-                const row = image as Record<string, unknown>;
-                const imageId = row.id;
-                const imageUrl = row.url as string | undefined;
+              {captionRows.map((caption) => {
+                const row = caption as Record<string, unknown>;
+                const captionId = row.id;
+                const imageId = row.image_id;
+                if (typeof imageId !== "string" && typeof imageId !== "number") {
+                  return null;
+                }
+                const imageUrl = imagesById.get(imageId)?.url;
                 if (!imageUrl) return null;
-                const captionItems =
-                  typeof imageId === "string" || typeof imageId === "number"
-                    ? captionsByImageId.get(imageId) ?? []
+                const captionEntry: CaptionEntry = {
+                  id: captionId as string | number | undefined,
+                  content: row.content as string | null | undefined,
+                };
+                const captionVotesList =
+                  typeof captionId === "string" || typeof captionId === "number"
+                    ? votesByCaptionId.get(captionId) ?? []
                     : [];
+                const userVote =
+                  typeof captionId === "string" || typeof captionId === "number"
+                    ? userVoteByCaptionId.get(captionId) ?? 0
+                    : 0;
                 return (
-                  <Card key={String(imageId ?? imageUrl)} className="w-full">
+                  <Card
+                    key={String(captionId ?? imageId ?? imageUrl)}
+                    className="w-full"
+                  >
+                    <VoteCount
+                      captionId={captionId as string | number}
+                      profileId={profileId}
+                      votes={captionVotesList}
+                      initialUserVote={userVote}
+                    />
                     <CardImage src={imageUrl} alt="Image preview" />
-                    <CardCaption captions={captionItems} />
+                    <CardCaption captions={[captionEntry]} />
                   </Card>
                 );
               })}
@@ -184,6 +273,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                 <a
                   href={`?page=${Math.max(1, currentPage - 1)}`}
                   aria-disabled={currentPage === 1}
+                  aria-label="Previous page"
                   className={[
                     "rounded-full px-3 py-2 ring-1 ring-white/10 transition",
                     currentPage === 1
@@ -191,7 +281,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                       : "hover:text-orange-200 hover:ring-orange-400/60",
                   ].join(" ")}
                 >
-                  Prev
+                  <Rewind className="h-4 w-4" aria-hidden="true" />
                 </a>
 
                 {buildPageItems(currentPage, totalPages).map((item, index) => {
@@ -208,8 +298,8 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                       key={`page-${item}`}
                       href={`?page=${item}`}
                       aria-current={isActive ? "page" : undefined}
-                      className={[
-                        "min-w-[2.5rem] rounded-full px-3 py-2 text-center ring-1 ring-white/10 transition",
+                    className={[
+                        "inline-flex min-w-[2.5rem] items-center justify-center rounded-full px-3 py-2 text-center ring-1 ring-white/10 transition",
                         isActive
                           ? "text-orange-200 ring-2 ring-orange-400/70 shadow-[0_0_16px_rgba(255,120,0,0.35)]"
                           : "hover:text-orange-200 hover:ring-orange-400/60",
@@ -223,6 +313,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                 <a
                   href={`?page=${Math.min(totalPages, currentPage + 1)}`}
                   aria-disabled={currentPage === totalPages}
+                  aria-label="Next page"
                   className={[
                     "rounded-full px-3 py-2 ring-1 ring-white/10 transition",
                     currentPage === totalPages
@@ -230,7 +321,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                       : "hover:text-orange-200 hover:ring-orange-400/60",
                   ].join(" ")}
                 >
-                  Next
+                  <FastForward className="h-4 w-4" aria-hidden="true" />
                 </a>
               </nav>
             ) : null}
