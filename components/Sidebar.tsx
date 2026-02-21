@@ -8,6 +8,7 @@ import SidebarUserMenu from "@/components/SidebarUserMenu";
 const navItems = [
   { href: "/hello-world", label: "Hello World" },
   { href: "/captions", label: "Captions List" },
+  { href: "/caption-generator", label: "Caption Generator" },
 ];
 
 export default function Sidebar() {
