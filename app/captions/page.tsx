@@ -60,6 +60,13 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
   if (!data.user) {
     redirect("/");
   }
+
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  const profileId = profileRow?.id ?? null;
   
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const results = await Promise.all(
@@ -159,11 +166,37 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
     });
   }
 
+  const { data: userVotes, error: userVotesError } =
+    profileId && captionIds.length
+      ? await supabase
+          .from("caption_votes")
+          .select("caption_id, vote_value")
+          .eq("profile_id", profileId)
+          .in("caption_id", captionIds)
+      : { data: null, error: null };
+
+  const userVoteByCaptionId = new Map<string | number, number>();
+  if (Array.isArray(userVotes)) {
+    userVotes.forEach((vote) => {
+      const row = vote as Record<string, unknown>;
+      const captionId = row.caption_id;
+      const voteValue = row.vote_value;
+      if (
+        (typeof captionId !== "string" && typeof captionId !== "number") ||
+        typeof voteValue !== "number"
+      ) {
+        return;
+      }
+      userVoteByCaptionId.set(captionId, voteValue);
+    });
+  }
+
   const dataErrorMessage =
     captionsCountError?.message ??
     captionsError?.message ??
     imagesForCaptionsError?.message ??
-    captionVotesError?.message;
+    captionVotesError?.message ??
+    userVotesError?.message;
 
   return (
     <div className="w-full max-w-[1400px] mx-auto">
@@ -210,12 +243,21 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                   typeof captionId === "string" || typeof captionId === "number"
                     ? votesByCaptionId.get(captionId) ?? []
                     : [];
+                const userVote =
+                  typeof captionId === "string" || typeof captionId === "number"
+                    ? userVoteByCaptionId.get(captionId) ?? 0
+                    : 0;
                 return (
                   <Card
                     key={String(captionId ?? imageId ?? imageUrl)}
                     className="w-full"
                   >
-                    <VoteCount votes={captionVotesList} />
+                    <VoteCount
+                      captionId={captionId as string | number}
+                      profileId={profileId}
+                      votes={captionVotesList}
+                      initialUserVote={userVote}
+                    />
                     <CardImage src={imageUrl} alt="Image preview" />
                     <CardCaption captions={[captionEntry]} />
                   </Card>
