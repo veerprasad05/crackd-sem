@@ -8,6 +8,12 @@ import {
   uploadImageToPresignedUrl,
   type CaptionRecord,
 } from "@/lib/captionPipeline";
+import {
+  Card,
+  CardCaption,
+  CardImage,
+  type CaptionEntry,
+} from "@/components/Card";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -180,10 +186,10 @@ export default function CaptionGeneratorPage() {
             <h1 className="text-[2.5rem] sm:text-[3rem] leading-none uppercase tracking-[0.18em] text-zinc-100 [font-family:var(--font-heading)]">
               Generate Captions From Images
             </h1>
-            <p className="text-sm text-zinc-300/70 max-w-2xl">
-              Upload a supported image and we will generate captions using the
-              pipeline. Supported types: jpeg, jpg, png, webp, gif, heic.
-            </p>
+						<div className="text-sm text-zinc-300/70 max-w-2xl">
+							<p> Upload a supported image and we will generate captions using the pipeline. </p>
+							<p>Supported types: jpeg, jpg, png, webp, gif, heic.</p>
+						</div>
           </header>
 
           <section className="mt-8">
@@ -203,7 +209,11 @@ export default function CaptionGeneratorPage() {
                   disabled={isWorking}
                   className="rounded-xl px-5 py-3 text-[0.7rem] uppercase tracking-[0.32em] bg-orange-500/15 text-orange-200 ring-2 ring-orange-400/50 shadow-[0_0_24px_rgba(255,120,0,0.2)] transition-colors hover:bg-orange-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isWorking ? "Processing..." : "Upload Image"}
+                  {isWorking
+                    ? "Processing..."
+                    : previewUrl
+                      ? "Re-Upload Image"
+                      : "Upload Image"}
                 </button>
                 <input
                   ref={fileInputRef}
@@ -225,41 +235,33 @@ export default function CaptionGeneratorPage() {
             </div>
           </section>
 
-          {previewUrl ? (
-            <section className="mt-8">
-              <div className="rounded-2xl border border-white/10 bg-black/60 p-4 shadow-[0_18px_40px_rgba(0,0,0,0.55)]">
-                <img
-                  src={previewUrl}
-                  alt="Uploaded preview"
-                  className="w-full max-h-[520px] object-contain rounded-xl bg-black"
-                />
-              </div>
-            </section>
-          ) : null}
-
-          <section className="mt-8">
-            <div className="rounded-2xl border border-white/10 bg-[#15151b]/85 p-6 shadow-[0_18px_40px_rgba(0,0,0,0.55)]">
-              <p className="text-xs uppercase tracking-[0.32em] text-zinc-300/70">
-                Generated Captions
-              </p>
-              {captions.length === 0 ? (
-                <p className="mt-4 text-sm text-zinc-400/80">
-                  Upload an image to generate captions.
-                </p>
-              ) : (
-                <ul className="mt-4 space-y-3 text-sm text-zinc-100">
-                  {captions.map((caption, index) => (
-                    <li
-                      key={`${index}-${caption.slice(0, 12)}`}
-                      className="rounded-xl border border-white/10 bg-black/40 px-4 py-3"
-                    >
-                      {caption}
-                    </li>
-                  ))}
-                </ul>
-              )}
+      <section className="mt-8">
+        <div className="rounded-2xl border border-white/10 bg-[#15151b]/85 p-6 shadow-[0_18px_40px_rgba(0,0,0,0.55)]">
+          <p className="text-xs uppercase tracking-[0.32em] text-zinc-300/70">
+            Generated Captions
+          </p>
+          {captions.length === 0 || !previewUrl ? (
+            <p className="mt-4 text-sm text-zinc-400/80">
+              Upload an image to generate captions.
+            </p>
+          ) : (
+            <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {captions.map((caption, index) => {
+                const captionEntry: CaptionEntry = {
+                  id: `${index}`,
+                  content: caption,
+                };
+                return (
+                  <Card key={`${index}-${caption.slice(0, 12)}`} className="w-full">
+                    <CardImage src={previewUrl} alt="Uploaded image" />
+                    <CardCaption captions={[captionEntry]} />
+                  </Card>
+                );
+              })}
             </div>
-          </section>
+          )}
+        </div>
+      </section>
         </>
       )}
     </div>
