@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 
+import { getAuthenticatedUserId } from "@/lib/supabase/audit";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type VoteCountProps = {
@@ -51,6 +52,17 @@ export function VoteCount({
     if (!canVote || isSubmitting || nextVote === userVote) return;
     setIsSubmitting(true);
     const timestamp = new Date().toISOString();
+    let userId: string;
+
+    try {
+      userId = await getAuthenticatedUserId(
+        supabase,
+        "You need to sign in before voting."
+      );
+    } catch {
+      setIsSubmitting(false);
+      return;
+    }
 
     let voteError: { message?: string } | null = null;
     if (userVote === 0) {
@@ -58,7 +70,11 @@ export function VoteCount({
         caption_id: captionId,
         profile_id: profileId,
         vote_value: nextVote,
+        is_from_study: false,
         created_datetime_utc: timestamp,
+        modified_datetime_utc: timestamp,
+        created_by_user_id: userId,
+        modified_by_user_id: userId,
       });
       voteError = error;
     } else {
@@ -67,6 +83,7 @@ export function VoteCount({
         .update({
           vote_value: nextVote,
           modified_datetime_utc: timestamp,
+          modified_by_user_id: userId,
         })
         .eq("caption_id", captionId)
         .eq("profile_id", profileId);
