@@ -1,0 +1,5 @@
+# User Feedback Summary
+
+I observed one user testing my caption generation and rating app in a food hall on a laptop. The user had not used my app before and did not have prior experience with similar applications, so I let them freely explore without giving specific instructions. They found the app easy to use, liked that uploading pictures was simple, and said the generated captions felt funny and natural. They also liked being able to like or dislike captions and use filters to sort through content.
+
+The main issues they noticed were around navigation and content flow rather than the humor itself. They experienced some friction with pagination, especially when trying to jump between distant pages, and felt that seeing only one or two photos per page could make the browsing experience feel repetitive. From this test, I learned that the core caption generation and rating features are working well, but the browsing experience would improve with easier page navigation and a denser, less repetitive presentation of images.
