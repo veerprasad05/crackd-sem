@@ -21,9 +21,10 @@ pnpm-debug.log*
 Thumbs.db
 .vscode
 .idea
+tsconfig.tsbuildinfo
 
 # build/cache
 .turbo
 .cache
 
-agents.md
+# agents.md
