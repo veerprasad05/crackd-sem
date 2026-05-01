@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type VoteCountProps = {
@@ -28,6 +29,7 @@ export function VoteCount({
   className,
 }: VoteCountProps) {
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
+  const router = useRouter();
   const [total, setTotal] = React.useState(initialTotal);
   const [userVote, setUserVote] = React.useState(() =>
     clampVoteValue(initialUserVote)
@@ -69,6 +71,8 @@ export function VoteCount({
     if (error) {
       setUserVote(previousVote);
       setTotal(total);
+    } else {
+      router.refresh();
     }
 
     setIsSubmitting(false);

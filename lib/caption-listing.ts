@@ -1,25 +1,18 @@
 export const CAPTION_PAGE_SIZE = 20;
 
-export type SortOrder = "asc" | "desc";
 export type SelectOption = {
   value: string;
   label: string;
 };
 
-export type CaptionSortMode = SortOrder | "most-likes" | "least-likes";
+export type CaptionSortMode = "most-likes" | "least-likes";
 
 export const CAPTION_SORT_OPTIONS: SelectOption[] = [
-  { value: "desc", label: "Newest first" },
-  { value: "asc", label: "Oldest first" },
-  { value: "most-likes", label: "Most votes" },
-  { value: "least-likes", label: "Least votes" },
+  { value: "most-likes", label: "Most liked" },
+  { value: "least-likes", label: "Least liked" },
 ];
 
 export function parseCaptionSortMode(value?: string): CaptionSortMode {
-  if (value === "asc") {
-    return "asc";
-  }
-
   if (value === "most-likes" || value === "most-votes") {
     return "most-likes";
   }
@@ -28,7 +21,7 @@ export function parseCaptionSortMode(value?: string): CaptionSortMode {
     return "least-likes";
   }
 
-  return "desc";
+  return "most-likes";
 }
 
 export function parseBooleanSearchParam(value?: string) {

@@ -18,6 +18,7 @@ type PageProps = {
     sort?: string;
     featured?: string;
     public?: string;
+    liked?: string;
   }>;
 };
 
@@ -44,42 +45,48 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
   const sort = parseCaptionSortMode(resolvedSearchParams?.sort);
   const featuredOnly = parseBooleanSearchParam(resolvedSearchParams?.featured);
   const publicOnly = parseBooleanSearchParam(resolvedSearchParams?.public);
+  const likedOnly = parseBooleanSearchParam(resolvedSearchParams?.liked);
 
-  const buildCaptionQuery = () => {
-    let query = supabase
-      .from("captions")
-      .select(
-        "id, image_id, content, created_datetime_utc, is_featured, is_public, like_count"
-      )
-      .not("content", "is", null)
-      .neq("content", "");
+  const { data: likedCaptionData, error: likedCaptionsError } = likedOnly
+    ? await supabase
+        .from("caption_votes")
+        .select("caption_id")
+        .eq("profile_id", profileId)
+        .eq("vote_value", 1)
+    : { data: [], error: null };
 
-    if (featuredOnly) {
-      query = query.eq("is_featured", true);
-    }
+  const likedCaptionIds = Array.from(
+    new Set(
+      (Array.isArray(likedCaptionData) ? likedCaptionData : [])
+        .map((vote) => vote.caption_id)
+        .filter((id): id is string => typeof id === "string")
+    )
+  );
 
-    if (publicOnly) {
-      query = query.eq("is_public", true);
-    }
+  const noLikedMatches = likedOnly && likedCaptionIds.length === 0;
 
-    return query;
-  };
-
-  let countQuery = supabase
+  let captionsCountQuery = supabase
     .from("captions")
-    .select("id", { count: "exact", head: true });
-
-  countQuery = countQuery.not("content", "is", null).neq("content", "");
+    .select("id", { count: "exact", head: true })
+    .not("content", "is", null)
+    .neq("content", "");
 
   if (featuredOnly) {
-    countQuery = countQuery.eq("is_featured", true);
+    captionsCountQuery = captionsCountQuery.eq("is_featured", true);
   }
 
   if (publicOnly) {
-    countQuery = countQuery.eq("is_public", true);
+    captionsCountQuery = captionsCountQuery.eq("is_public", true);
   }
 
-  const { count: totalCaptionCount, error: captionsCountError } = await countQuery;
+  if (likedOnly && likedCaptionIds.length > 0) {
+    captionsCountQuery = captionsCountQuery.in("id", likedCaptionIds);
+  }
+
+  const { count: totalCaptionCount, error: captionsCountError } = noLikedMatches
+    ? { count: 0, error: null }
+    : await captionsCountQuery;
+
   const totalPages = Math.max(
     1,
     Math.ceil((totalCaptionCount ?? 0) / CAPTION_PAGE_SIZE)
@@ -88,45 +95,78 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
   const rangeStart = (currentPage - 1) * CAPTION_PAGE_SIZE;
   const rangeEnd = rangeStart + CAPTION_PAGE_SIZE - 1;
 
-  let captionsQuery = buildCaptionQuery();
+  let captionsQuery = supabase
+    .from("captions")
+    .select(
+      "id, image_id, content, created_datetime_utc, is_featured, is_public, like_count"
+    )
+    .not("content", "is", null)
+    .neq("content", "");
 
-  if (sort === "most-likes" || sort === "least-likes") {
-    captionsQuery = captionsQuery.order("like_count", {
-      ascending: sort === "least-likes",
+  if (featuredOnly) {
+    captionsQuery = captionsQuery.eq("is_featured", true);
+  }
+
+  if (publicOnly) {
+    captionsQuery = captionsQuery.eq("is_public", true);
+  }
+
+  if (likedOnly && likedCaptionIds.length > 0) {
+    captionsQuery = captionsQuery.in("id", likedCaptionIds);
+  }
+
+  const { data: captionsData, error: captionsError } = noLikedMatches
+    ? { data: [], error: null }
+    : await captionsQuery
+        .order("like_count", { ascending: sort === "least-likes" })
+        .order("created_datetime_utc", { ascending: false })
+        .range(rangeStart, rangeEnd);
+
+  const pagedCaptionRows = Array.isArray(captionsData)
+    ? (captionsData as CaptionRow[])
+    : [];
+
+  const pagedCaptionIds = Array.from(
+    new Set(
+      pagedCaptionRows.map((caption) => caption.id).filter(
+        (id): id is string => typeof id === "string"
+      )
+    )
+  );
+
+  const { data: userCaptionVotes, error: userCaptionVotesError } = pagedCaptionIds.length
+    ? await supabase
+        .from("caption_votes")
+        .select("caption_id, vote_value")
+        .eq("profile_id", profileId)
+        .in("caption_id", pagedCaptionIds)
+    : { data: [], error: null };
+
+  const userVoteByCaptionId = new Map<string, number>();
+
+  if (Array.isArray(userCaptionVotes)) {
+    userCaptionVotes.forEach((vote) => {
+      const captionId = typeof vote.caption_id === "string" ? vote.caption_id : null;
+      const voteValue = typeof vote.vote_value === "number" ? vote.vote_value : null;
+
+      if (!captionId || voteValue === null) {
+        return;
+      }
+
+      userVoteByCaptionId.set(captionId, voteValue);
     });
   }
 
-  const { data: captionsData, error: captionsError } = await captionsQuery
-    .order("created_datetime_utc", { ascending: sort === "asc" })
-    .range(rangeStart, rangeEnd);
-
-  const captionRows = Array.isArray(captionsData)
-    ? (captionsData as CaptionRow[])
-    : [];
-  const captionIds = Array.from(
+  const pagedImageIds = Array.from(
     new Set(
-      captionRows.map((caption) => caption.id).filter(
-        (id): id is string => typeof id === "string"
-      )
-    )
-  );
-  const imageIds = Array.from(
-    new Set(
-      captionRows.map((caption) => caption.image_id).filter(
+      pagedCaptionRows.map((caption) => caption.image_id).filter(
         (id): id is string => typeof id === "string"
       )
     )
   );
 
-  const { data: imagesForCaptions, error: imagesForCaptionsError } = imageIds.length
-    ? await supabase.from("images").select("id, url").in("id", imageIds)
-    : { data: [], error: null };
-
-  const { data: captionVotes, error: captionVotesError } = captionIds.length
-    ? await supabase
-        .from("caption_votes")
-        .select("caption_id, profile_id, vote_value")
-        .in("caption_id", captionIds)
+  const { data: imagesForCaptions, error: imagesForCaptionsError } = pagedImageIds.length
+    ? await supabase.from("images").select("id, url").in("id", pagedImageIds)
     : { data: [], error: null };
 
   const imagesById = new Map<string, string | null>();
@@ -136,34 +176,16 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
     });
   }
 
-  const totalVotesByCaptionId = new Map<string, number>();
-  const userVoteByCaptionId = new Map<string, number>();
-
-  if (Array.isArray(captionVotes)) {
-    captionVotes.forEach((vote) => {
-      const captionId = typeof vote.caption_id === "string" ? vote.caption_id : null;
-      const voteValue = typeof vote.vote_value === "number" ? vote.vote_value : null;
-
-      if (!captionId || voteValue === null) {
-        return;
-      }
-
-      totalVotesByCaptionId.set(
-        captionId,
-        (totalVotesByCaptionId.get(captionId) ?? 0) + voteValue
-      );
-
-      if (vote.profile_id === profileId) {
-        userVoteByCaptionId.set(captionId, voteValue);
-      }
-    });
-  }
-
   const dataErrorMessage =
+    likedCaptionsError?.message ??
     captionsCountError?.message ??
     captionsError?.message ??
-    imagesForCaptionsError?.message ??
-    captionVotesError?.message;
+    userCaptionVotesError?.message ??
+    imagesForCaptionsError?.message;
+
+  const totalMatchingCaptions = totalCaptionCount ?? 0;
+  const visibleStart = totalMatchingCaptions === 0 ? 0 : rangeStart + 1;
+  const visibleEnd = Math.min(rangeStart + CAPTION_PAGE_SIZE, totalMatchingCaptions);
 
   return (
     <div className="mx-auto w-full max-w-[1400px]">
@@ -176,8 +198,8 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
             Captions
           </h1>
           <p className="mt-4 max-w-2xl text-sm text-zinc-300/75">
-            Browse caption records alongside their images with the same
-            sort, filter, and pagination flow used in admin.
+            Browse the highest-rated captions first, then narrow the list with
+            filters that match what you want to revisit.
           </p>
         </div>
 
@@ -186,6 +208,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
             sort={sort}
             featuredOnly={featuredOnly}
             publicOnly={publicOnly}
+            likedOnly={likedOnly}
             options={CAPTION_SORT_OPTIONS}
           />
         </div>
@@ -196,12 +219,19 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
           <p className="text-sm text-rose-200/90">
             Failed to load captions: {dataErrorMessage}
           </p>
-        ) : captionRows.length === 0 ? (
+        ) : totalMatchingCaptions === 0 ? (
           <p className="text-sm text-zinc-400/80">No captions found.</p>
+        ) : pagedCaptionRows.length === 0 ? (
+          <p className="text-sm text-zinc-400/80">
+            No captions match the current filters.
+          </p>
         ) : (
           <>
+            <p className="mb-5 text-sm text-zinc-300/75">
+              Showing {visibleStart}-{visibleEnd} of {totalMatchingCaptions} captions
+            </p>
             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {captionRows.map((caption) => {
+              {pagedCaptionRows.map((caption) => {
                 const imageUrl =
                   typeof caption.image_id === "string"
                     ? imagesById.get(caption.image_id) ?? null
@@ -213,7 +243,6 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                   content:
                     typeof caption.content === "string" ? caption.content : null,
                 };
-                const totalVotes = totalVotesByCaptionId.get(caption.id) ?? 0;
                 const userVote = userVoteByCaptionId.get(caption.id) ?? 0;
 
                 return (
@@ -221,7 +250,7 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
                     <VoteCount
                       captionId={caption.id}
                       profileId={profileId}
-                      initialTotal={totalVotes}
+                      initialTotal={caption.like_count}
                       initialUserVote={userVote}
                     />
                     <Card.Image src={imageUrl} alt="Caption image" />
@@ -236,9 +265,10 @@ export default async function CaptionsPage({ searchParams }: PageProps) {
               currentPage={currentPage}
               totalPages={totalPages}
               queryParams={{
-                sort,
+                sort: sort === "most-likes" ? undefined : sort,
                 featured: featuredOnly ? "true" : undefined,
                 public: publicOnly ? "true" : undefined,
+                liked: likedOnly ? "true" : undefined,
               }}
             />
           </>
